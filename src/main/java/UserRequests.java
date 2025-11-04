@@ -27,6 +27,10 @@ public class UserRequests {
                 .body(user)
                 .when()
                 .post(USER_LOGIN);
+        if (loginResponse.getStatusCode() == 200)  {
+            user.setAccessToken(loginResponse.jsonPath().getString("accessToken"));
+            user.setRefreshToken(loginResponse.jsonPath().getString("refreshToken"));
+        }
         return loginResponse;
     }
 
