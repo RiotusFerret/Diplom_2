@@ -1,9 +1,10 @@
 import data.DataBase;
 import io.qameta.allure.Description;
 import io.qameta.allure.junit4.DisplayName;
+import io.restassured.response.Response;
 import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
-
 import java.util.List;
 
 import static data.TestData.*;
@@ -16,6 +17,13 @@ public class OrderCreateTests extends BaseTest{
     UserRequests usReq = new UserRequests();
     DataBase dataBase = new DataBase();
     OrderRequests ordReq = new OrderRequests();
+    Order order = new Order();
+
+    @Before
+    public void StartUp() {
+        Response creationResponse = usReq.userCreate(user);
+        usReq.userGetToken(creationResponse, user);
+    }
 
     @After
     public void cleanUp() {
@@ -28,44 +36,56 @@ public class OrderCreateTests extends BaseTest{
     @DisplayName("Создание заказа с авторизацией")
     @Description("Код 200 и сообщение в ответе на успешный запрос")
     public void orderCreateAuthorisedTest() {
-        Order order = new Order(List.of(dataBase.availableBuns().get(0).getId(), dataBase.availableIngredients().get(1).getId(), dataBase.availableIngredients().get(10).getId()));
-        usReq.userCreate(user);
+        order.setIngredients(List.of(dataBase.availableBuns().get(0).getId(), dataBase.availableIngredients().get(1).getId(), dataBase.availableIngredients().get(10).getId()));
         usReq.userLogin(user);
-        ordReq.orderCreate(order)
+        Response orderCreateResponse = ordReq.orderCreate(order);
+        orderCreateResponse
                 .then().log().all()
                 .statusCode(SC_OK)
                 .body("name",notNullValue());
+
+        ordReq.orderSetNumberAndName(orderCreateResponse, order);
     }
 
     @Test
     @DisplayName("Создание заказа без авторизации")
     @Description("Код 200 и сообщение в ответе на успешный запрос")
     public void orderCreateUnauthorisedTest() {
-        Order order = new Order(List.of(dataBase.availableBuns().get(0).getId(), dataBase.availableIngredients().get(1).getId(), dataBase.availableIngredients().get(10).getId()));
-        ordReq.orderCreate(order)
+        order.setIngredients(List.of(dataBase.availableBuns().get(0).getId(), dataBase.availableIngredients().get(1).getId(), dataBase.availableIngredients().get(10).getId()));
+        Response orderCreateResponse = ordReq.orderCreate(order);
+        orderCreateResponse
                 .then().log().all()
                 .statusCode(SC_OK)
                 .body("name",notNullValue());
+
+        ordReq.orderSetNumberAndName(orderCreateResponse, order);
     }
 
     @Test
     @DisplayName("Создание заказа с неверным хешем ингредиентов")
     @Description("Код 500")
     public void orderCreateWithWrongIdsTest() {
-        Order order = new Order(List.of(dataBase.availableBuns().get(0).getId() + "1", dataBase.availableIngredients().get(1).getId() + "1", dataBase.availableIngredients().get(10).getId() + "1"));
-        ordReq.orderCreate(order)
+        order.setIngredients(List.of(dataBase.availableBuns().get(0).getId() + "1", dataBase.availableIngredients().get(1).getId() + "1", dataBase.availableIngredients().get(10).getId() + "1"));
+        usReq.userLogin(user);
+        Response orderCreateResponse = ordReq.orderCreate(order);
+        orderCreateResponse
                 .then().log().all()
                 .statusCode(SC_INTERNAL_SERVER_ERROR);
+
+        ordReq.orderSetNumberAndName(orderCreateResponse, order);
     }
 
     @Test
     @DisplayName("Создание заказа без ингредиентов")
     @Description("Код 400 и сообщение об ошибке")
     public void orderCreateWithoutIngredientsTest() {
-        Order order = new Order();
-        ordReq.orderCreate(order)
+        usReq.userLogin(user);
+        Response orderCreateResponse = ordReq.orderCreate(order);
+        orderCreateResponse
                 .then().log().all()
                 .statusCode(SC_BAD_REQUEST)
                 .body("message", equalTo("Ingredient ids must be provided"));
+
+        ordReq.orderSetNumberAndName(orderCreateResponse, order);
     }
 }

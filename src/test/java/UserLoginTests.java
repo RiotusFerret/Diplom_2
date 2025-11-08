@@ -1,6 +1,8 @@
 import io.qameta.allure.Description;
 import io.qameta.allure.junit4.DisplayName;
+import io.restassured.response.Response;
 import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 
 import static data.TestData.*;
@@ -11,11 +13,21 @@ import static org.hamcrest.Matchers.equalTo;
 public class UserLoginTests extends BaseTest {
     User user = new User(EMAIL, NAME, PASSWORD);
     UserRequests usReq = new UserRequests();
+    User dummy = new User();
+
+    @Before
+    public void startUp() {
+        Response creationResponse = usReq.userCreate(user);
+        usReq.userGetToken(creationResponse, user);
+    }
 
     @After
     public void cleanUp() {
         if (user.isCreated()) {
             usReq.userDelete(user);
+        }
+        if (dummy.isCreated()) {
+            usReq.userDelete(dummy);
         }
     }
 
@@ -23,45 +35,44 @@ public class UserLoginTests extends BaseTest {
     @DisplayName("Логин существующего пользователя")
     @Description("Код 200 и сообщение в ответе на успешный запрос")
     public void userLoginExistingTest() {
-        usReq.userCreate(user);
-            usReq.userLogin(user)
+        Response loginResponse = usReq.userLogin(user);
+        loginResponse
                 .then().log().all()
                 .statusCode(SC_OK)
                 .body("success",equalTo(true));
+
+        usReq.userGetToken(loginResponse, user);
     }
 
     @Test
     @DisplayName("Логин пользователя c неверным логином")
     @Description("Код 401 и сообщение об ошибке")
     public void userLoginWrongLoginTest() {
-        usReq.userCreate(user);
-        User dummy = new User("1" + EMAIL, user.getName(), user.getPassword());
-        usReq.userLogin(dummy)
+        dummy.setPassword("1" + EMAIL);
+        dummy.setName(user.getName());
+        dummy.setPassword(user.getPassword());
+        Response dummyLoginResponse = usReq.userLogin(dummy);
+        dummyLoginResponse
                 .then().log().all()
                 .statusCode(SC_UNAUTHORIZED)
                 .body("message",equalTo("email or password are incorrect"));
 
-        if (dummy.isCreated()) {
-            usReq.userDelete(dummy);
-        }
+        usReq.userGetToken(dummyLoginResponse, dummy);
     }
 
     @Test
     @DisplayName("Логин пользователя c неверным паролем")
     @Description("Код 401 и сообщение об ошибке")
     public void userLoginWrongPasswordTest() {
-        usReq.userCreate(user);
-        User dummy = new User(user.getPassword(), user.getName(), "1" + user.getPassword());
-        usReq.userLogin(dummy)
+        dummy.setPassword(user.getEmail());
+        dummy.setName(user.getName());
+        dummy.setPassword("1" + user.getPassword());
+        Response dummyLoginResponse = usReq.userLogin(dummy);
+        dummyLoginResponse
                 .then().log().all()
                 .statusCode(SC_UNAUTHORIZED)
                 .body("message",equalTo("email or password are incorrect"));
 
-        if (dummy.isCreated()) {
-            usReq.userDelete(dummy);
-        }
+        usReq.userGetToken(dummyLoginResponse, dummy);
     }
-
-
-
 }
